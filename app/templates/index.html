@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Urban Dengue Outbreak Early-Warning System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div>
+                <h1 class="text-xl font-bold text-emerald-400">
+                    Urban Dengue Outbreak Early-Warning System
+                </h1>
+                <p class="text-xs text-slate-400">
+                    2-to-4-Week Municipal Public Health Forecast Dashboard
+                </p>
+            </div>
+            <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                Server Online
+            </span>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-6xl mx-auto px-6 py-8 flex-1 w-full space-y-6">
+        <!-- Quick Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="p-5 rounded-xl bg-slate-900 border border-slate-800">
+                <p class="text-xs uppercase tracking-wider text-slate-400">Selected Ward</p>
+                <p class="text-2xl font-bold mt-1">Ward 01</p>
+                <p class="text-xs text-slate-500 mt-1">Forecast window: 2–4 weeks ahead</p>
+            </div>
+            <div class="p-5 rounded-xl bg-slate-900 border border-slate-800">
+                <p class="text-xs uppercase tracking-wider text-slate-400">Predicted Risk Tier</p>
+                <p class="text-2xl font-bold mt-1 text-amber-400">Medium</p>
+                <p class="text-xs text-slate-500 mt-1">Awaiting live model pipeline</p>
+            </div>
+            <div class="p-5 rounded-xl bg-slate-900 border border-slate-800">
+                <p class="text-xs uppercase tracking-wider text-slate-400">Key Weather Driver</p>
+                <p class="text-2xl font-bold mt-1 text-sky-400">Rainfall Lag (2–3w)</p>
+                <p class="text-xs text-slate-500 mt-1">Temp, Rainfall &amp; Humidity</p>
+            </div>
+        </div>
+
+        <!-- Placeholder Chart Card -->
+        <div class="p-6 rounded-xl bg-slate-900 border border-slate-800">
+            <h2 class="text-sm font-semibold text-slate-300 mb-4">
+                Sample Forecast &amp; Rainfall Lag Preview
+            </h2>
+            <div class="h-64">
+                <canvas id="previewChart"></canvas>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const ctx = document.getElementById('previewChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Week -3', 'Week -2', 'Week -1', 'Current', 'Week +1', 'Week +2'],
+                datasets: [
+                    {
+                        label: 'Predicted Dengue Cases',
+                        data: [12, 19, 24, 31, 42, 38],
+                        borderColor: '#34d399',
+                        backgroundColor: 'rgba(52, 211, 153, 0.15)',
+                        tension: 0.35,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: '#cbd5e1' } }
+                },
+                scales: {
+                    x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+                    y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
