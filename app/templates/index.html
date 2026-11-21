@@ -26,6 +26,19 @@
             border: 2px solid #0f172a;
             cursor: pointer;
         }
+        input[type="date"] {
+            color-scheme: dark;
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            opacity: 0.9;
+            padding: 2px;
+            border-radius: 4px;
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator:hover {
+            opacity: 1;
+            background-color: rgba(52, 211, 153, 0.15);
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-emerald-500/30">
@@ -122,13 +135,17 @@
                             <label for="targetDate" class="block text-xs font-medium text-slate-300 mb-1.5">
                                 Forecast Target Date
                             </label>
-                            <input
-                                type="date"
-                                id="targetDate"
-                                name="target_date"
-                                required
-                                class="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500"
-                            />
+                            <div class="relative flex items-center">
+                                <input
+                                    type="date"
+                                    id="targetDate"
+                                    name="target_date"
+                                    min="2016-01-01"
+                                    max="2035-12-31"
+                                    required
+                                    class="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono text-slate-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500"
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -638,6 +655,11 @@
         }
 
         priorRainSlider.addEventListener("input", updateSliderDisplay);
+        targetDateInput.addEventListener("click", () => {
+            if (typeof targetDateInput.showPicker === "function") {
+                try { targetDateInput.showPicker(); } catch (_) {}
+            }
+        });
         wardSelect.addEventListener("change", () => loadWardDefaults(wardSelect.value, true));
         forecastForm.addEventListener("submit", (e) => {
             e.preventDefault();
