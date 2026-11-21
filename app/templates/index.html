@@ -1,90 +1,666 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Urban Dengue Outbreak Early-Warning System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 9999px;
+            background: #38bdf8;
+            border: 2px solid #0f172a;
+            cursor: pointer;
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 9999px;
+            background: #38bdf8;
+            border: 2px solid #0f172a;
+            cursor: pointer;
+        }
+    </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
-    <!-- Header -->
-    <header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
-        <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-            <div>
-                <h1 class="text-xl font-bold text-emerald-400">
-                    Urban Dengue Outbreak Early-Warning System
-                </h1>
-                <p class="text-xs text-slate-400">
-                    2-to-4-Week Municipal Public Health Forecast Dashboard
-                </p>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-emerald-500/30">
+    <!-- Top Command Header -->
+    <header class="sticky top-0 z-20 border-b border-slate-800/90 bg-slate-950/90 backdrop-blur">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div class="flex items-center gap-3.5">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2.5 flex-wrap">
+                        <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white">
+                            Urban Dengue Outbreak Early-Warning System
+                        </h1>
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            Live Local Inference
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-0.5">
+                        2-to-4-Week Municipal Surveillance &bull; {{ metrics.model_name }} &bull; {{ ward_list | length }} Wards Monitored
+                    </p>
+                </div>
             </div>
-            <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                Server Online
-            </span>
+
+            <!-- 2025 Untouched Test Metrics Pills -->
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+                <div class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-2">
+                    <span class="text-slate-400">2025 Test MAE</span>
+                    <span class="font-semibold text-emerald-400 font-mono">{{ "%.3f" | format(metrics.test_2025_mae) }}</span>
+                </div>
+                <div class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-2">
+                    <span class="text-slate-400">2025 Test RMSE</span>
+                    <span class="font-semibold text-sky-400 font-mono">{{ "%.3f" | format(metrics.test_2025_rmse) }}</span>
+                </div>
+                <div class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-2">
+                    <span class="text-slate-400">R&sup2;</span>
+                    <span class="font-semibold text-indigo-400 font-mono">{{ "%.3f" | format(metrics.test_2025_r2) }}</span>
+                </div>
+                <div class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-2">
+                    <span class="text-slate-400">4-Tier Acc</span>
+                    <span class="font-semibold text-amber-400 font-mono">{{ "%.1f" | format(metrics.test_2025_tier_accuracy_pct) }}%</span>
+                </div>
+            </div>
         </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="max-w-6xl mx-auto px-6 py-8 flex-1 w-full space-y-6">
-        <!-- Quick Summary Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="p-5 rounded-xl bg-slate-900 border border-slate-800">
-                <p class="text-xs uppercase tracking-wider text-slate-400">Selected Ward</p>
-                <p class="text-2xl font-bold mt-1">Ward 01</p>
-                <p class="text-xs text-slate-500 mt-1">Forecast window: 2–4 weeks ahead</p>
-            </div>
-            <div class="p-5 rounded-xl bg-slate-900 border border-slate-800">
-                <p class="text-xs uppercase tracking-wider text-slate-400">Predicted Risk Tier</p>
-                <p class="text-2xl font-bold mt-1 text-amber-400">Medium</p>
-                <p class="text-xs text-slate-500 mt-1">Awaiting live model pipeline</p>
-            </div>
-            <div class="p-5 rounded-xl bg-slate-900 border border-slate-800">
-                <p class="text-xs uppercase tracking-wider text-slate-400">Key Weather Driver</p>
-                <p class="text-2xl font-bold mt-1 text-sky-400">Rainfall Lag (2–3w)</p>
-                <p class="text-xs text-slate-500 mt-1">Temp, Rainfall &amp; Humidity</p>
-            </div>
+    <!-- Main Dashboard Grid -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <!-- LEFT PANEL: Ward & Weather Scenario Controls -->
+            <section class="lg:col-span-5 rounded-2xl bg-slate-900/90 border border-slate-800 p-5 sm:p-6 shadow-xl">
+                <div class="flex items-center justify-between gap-2 mb-5">
+                    <div>
+                        <h2 class="text-base font-semibold text-white">Forecast &amp; Weather Simulator</h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Adjust current conditions &amp; lagged monsoon rainfall</p>
+                    </div>
+                    <button
+                        type="button"
+                        id="monsoonPresetBtn"
+                        class="text-xs px-2.5 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 transition cursor-pointer"
+                        title="Simulate peak monsoon temperature, humidity, and heavy lagged rainfall"
+                    >
+                        Monsoon Surge Preset
+                    </button>
+                </div>
+
+                <form id="forecastForm" class="space-y-4">
+                    <!-- Ward Selector & Date -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                            <label for="wardSelect" class="block text-xs font-medium text-slate-300 mb-1.5">
+                                Municipal Ward
+                            </label>
+                            <select
+                                id="wardSelect"
+                                name="ward_id"
+                                class="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500"
+                            >
+                                {% for city, wards in wards_by_city.items() %}
+                                <optgroup label="{{ city }}">
+                                    {% for wid in wards %}
+                                    <option value="{{ wid }}">{{ wid }} ({{ city }})</option>
+                                    {% endfor %}
+                                </optgroup>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="targetDate" class="block text-xs font-medium text-slate-300 mb-1.5">
+                                Forecast Target Date
+                            </label>
+                            <input
+                                type="date"
+                                id="targetDate"
+                                name="target_date"
+                                required
+                                class="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Temperature Inputs -->
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label for="avgTemp" class="block text-xs font-medium text-slate-300 mb-1.5">
+                                Avg Temp (&deg;C)
+                            </label>
+                            <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="55"
+                                id="avgTemp"
+                                required
+                                class="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500"
+                            />
+                        </div>
+                        <div>
+                            <label for="maxTemp" class="block text-xs font-medium text-slate-300 mb-1.5">
+                                Max Temp (&deg;C)
+                            </label>
+                            <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="60"
+                                id="maxTemp"
+                                required
+                                class="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500"
+                            />
+                        </div>
+                        <div>
+                            <label for="minTemp" class="block text-xs font-medium text-slate-300 mb-1.5">
+                                Min Temp (&deg;C)
+                            </label>
+                            <input
+                                type="number"
+                                step="0.1"
+                                min="-5"
+                                max="50"
+                                id="minTemp"
+                                required
+                                class="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Current Week Rainfall & Humidity -->
+                    <div class="grid grid-cols-2 gap-3.5">
+                        <div>
+                            <label for="rainfallMm" class="block text-xs font-medium text-slate-300 mb-1.5">
+                                Target Week Rainfall (mm)
+                            </label>
+                            <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="1000"
+                                id="rainfallMm"
+                                required
+                                class="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500"
+                            />
+                        </div>
+                        <div>
+                            <label for="humidityPct" class="block text-xs font-medium text-slate-300 mb-1.5">
+                                Relative Humidity (%)
+                            </label>
+                            <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="100"
+                                id="humidityPct"
+                                required
+                                class="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm font-mono text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Prior 3-Week Lagged Rainfall Slider -->
+                    <div class="p-4 rounded-xl bg-slate-950/80 border border-sky-500/25 space-y-2.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <label for="priorRainSlider" class="text-xs font-semibold text-sky-300">
+                                Prior 3-Week Lagged Rainfall (Avg / wk)
+                            </label>
+                            <span id="priorRainDisplay" class="px-2.5 py-0.5 rounded-md bg-sky-500/15 border border-sky-500/30 text-xs font-bold font-mono text-sky-300">
+                                0.0 mm
+                            </span>
+                        </div>
+                        <input
+                            type="range"
+                            id="priorRainSlider"
+                            min="0"
+                            max="250"
+                            step="1"
+                            value="0"
+                            class="w-full h-2 rounded-lg appearance-none bg-slate-800 cursor-pointer"
+                        />
+                        <div class="flex justify-between text-[11px] text-slate-500 font-mono">
+                            <span>0 mm (Dry)</span>
+                            <span>125 mm (Moderate)</span>
+                            <span>250 mm (Heavy Monsoon)</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 leading-relaxed">
+                            Simulates stagnant-water buildup 1–3 weeks before target date (<em>Aedes aegypti</em> maturation &amp; incubation window).
+                        </p>
+                    </div>
+
+                    <!-- Error Box -->
+                    <div id="errorBanner" class="hidden rounded-lg bg-rose-500/10 border border-rose-500/30 px-3.5 py-2.5 text-xs text-rose-300"></div>
+
+                    <!-- Submit CTA -->
+                    <button
+                        type="submit"
+                        id="predictBtn"
+                        class="w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-slate-950 font-semibold text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15 cursor-pointer disabled:opacity-60"
+                    >
+                        <svg id="predictSpinner" class="hidden w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                        </svg>
+                        <span id="predictBtnText">Run Outbreak Risk Forecast</span>
+                    </button>
+                </form>
+            </section>
+
+            <!-- RIGHT PANEL: Risk Prediction, Ward Vulnerability & Top Drivers -->
+            <section class="lg:col-span-7 space-y-5">
+                <!-- Hero Risk Prediction Card -->
+                <div class="rounded-2xl bg-slate-900/90 border border-slate-800 p-5 sm:p-6 shadow-xl">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <p class="text-xs uppercase tracking-wider text-slate-400 font-medium">
+                                Predicted Weekly Dengue Cases
+                            </p>
+                            <div class="flex items-baseline gap-3 mt-1.5">
+                                <span id="predictedCasesValue" class="text-4xl sm:text-5xl font-extrabold tracking-tight text-white font-mono">
+                                    --
+                                </span>
+                                <span class="text-sm text-slate-400">cases / week</span>
+                            </div>
+                            <p id="forecastContextLabel" class="text-xs text-slate-400 mt-1.5">
+                                Loading ward baseline...
+                            </p>
+                        </div>
+
+                        <div class="flex flex-col sm:items-end gap-2">
+                            <span class="text-[11px] uppercase tracking-wider text-slate-400">Risk Tier</span>
+                            <div id="riskTierBadge" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-base font-bold border bg-slate-800 text-slate-300 border-slate-700">
+                                <span id="riskTierDot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                                <span id="riskTierText">Pending</span>
+                            </div>
+                            <span id="roll3wRainTag" class="text-[11px] text-slate-400 font-mono">
+                                3W Cumul. Rain: -- mm
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Public Health Advisory -->
+                    <div id="advisoryBox" class="mt-4 rounded-xl bg-slate-950/70 border border-slate-800 px-4 py-3 text-xs text-slate-300 flex items-start gap-2.5">
+                        <svg class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span id="advisoryText">Select a ward and run forecast to generate actionable municipal guidance.</span>
+                    </div>
+                </div>
+
+                <!-- Ward Vulnerability Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="rounded-2xl bg-slate-900/90 border border-slate-800 p-4">
+                        <p class="text-[11px] uppercase tracking-wider text-slate-400">Water-Logging Risk</p>
+                        <div class="flex items-baseline justify-between mt-1.5">
+                            <span id="waterLoggingVal" class="text-2xl font-bold font-mono text-sky-400">--</span>
+                            <span class="text-[11px] text-slate-500">0.0 – 1.0</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-slate-800 rounded-full mt-2.5 overflow-hidden">
+                            <div id="waterLoggingBar" class="h-full bg-sky-400 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-2xl bg-slate-900/90 border border-slate-800 p-4">
+                        <p class="text-[11px] uppercase tracking-wider text-slate-400">Population Density</p>
+                        <div class="flex items-baseline justify-between mt-1.5">
+                            <span id="popDensityVal" class="text-2xl font-bold font-mono text-indigo-400">--</span>
+                            <span class="text-[11px] text-slate-500">per km&sup2;</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-slate-800 rounded-full mt-2.5 overflow-hidden">
+                            <div id="popDensityBar" class="h-full bg-indigo-400 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-2xl bg-slate-900/90 border border-slate-800 p-4">
+                        <p class="text-[11px] uppercase tracking-wider text-slate-400">Sanitation Score</p>
+                        <div class="flex items-baseline justify-between mt-1.5">
+                            <span id="sanitationVal" class="text-2xl font-bold font-mono text-emerald-400">--</span>
+                            <span class="text-[11px] text-slate-500">higher = better</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-slate-800 rounded-full mt-2.5 overflow-hidden">
+                            <div id="sanitationBar" class="h-full bg-emerald-400 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top 5 Feature Drivers (TreeSHAP / pred_contrib) -->
+                <div class="rounded-2xl bg-slate-900/90 border border-slate-800 p-5 sm:p-6 shadow-xl">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                        <div>
+                            <h3 class="text-sm font-semibold text-white">Top 5 Outbreak Risk Drivers</h3>
+                            <p class="text-xs text-slate-400">
+                                Local feature contributions from LightGBM (<code>pred_contrib</code>)
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-3 text-[11px]">
+                            <span class="inline-flex items-center gap-1.5 text-rose-400">
+                                <span class="w-2.5 h-2.5 rounded-sm bg-rose-500"></span>
+                                Increases Risk
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 text-emerald-400">
+                                <span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span>
+                                Reduces Risk
+                            </span>
+                        </div>
+                    </div>
+
+                    <div id="driversList" class="space-y-3.5">
+                        <p class="text-xs text-slate-500">Running initial prediction...</p>
+                    </div>
+                </div>
+            </section>
         </div>
 
-        <!-- Placeholder Chart Card -->
-        <div class="p-6 rounded-xl bg-slate-900 border border-slate-800">
-            <h2 class="text-sm font-semibold text-slate-300 mb-4">
-                Sample Forecast &amp; Rainfall Lag Preview
-            </h2>
-            <div class="h-64">
-                <canvas id="previewChart"></canvas>
+        <!-- BOTTOM PANEL: 2025 Untouched Test Validation Chart -->
+        <section class="rounded-2xl bg-slate-900/90 border border-slate-800 p-5 sm:p-6 shadow-xl">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                <div>
+                    <h2 class="text-base font-semibold text-white">
+                        2025 Untouched Test Set Validation: Actual vs. Predicted Weekly Cases
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-0.5">
+                        Strict chronological evaluation (Trained on {{ metrics.train_period }} + {{ metrics.val_period }}, evaluated blind on {{ metrics.test_period }} across all 60 wards)
+                    </p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 text-xs font-mono">
+                    <span class="px-2.5 py-1 rounded-md bg-slate-950 border border-slate-800 text-slate-300">
+                        MAE: <strong class="text-emerald-400">{{ "%.3f" | format(metrics.test_2025_mae) }}</strong>
+                    </span>
+                    <span class="px-2.5 py-1 rounded-md bg-slate-950 border border-slate-800 text-slate-300">
+                        RMSE: <strong class="text-sky-400">{{ "%.3f" | format(metrics.test_2025_rmse) }}</strong>
+                    </span>
+                </div>
             </div>
-        </div>
+            <div class="h-72 sm:h-80 w-full">
+                <canvas id="validationChart"></canvas>
+            </div>
+        </section>
     </main>
 
     <script>
-        const ctx = document.getElementById('previewChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: ['Week -3', 'Week -2', 'Week -1', 'Current', 'Week +1', 'Week +2'],
-                datasets: [
-                    {
-                        label: 'Predicted Dengue Cases',
-                        data: [12, 19, 24, 31, 42, 38],
-                        borderColor: '#34d399',
-                        backgroundColor: 'rgba(52, 211, 153, 0.15)',
-                        tension: 0.35,
-                        fill: true
-                    }
-                ]
+        const wardSelect = document.getElementById("wardSelect");
+        const targetDateInput = document.getElementById("targetDate");
+        const avgTempInput = document.getElementById("avgTemp");
+        const maxTempInput = document.getElementById("maxTemp");
+        const minTempInput = document.getElementById("minTemp");
+        const rainfallInput = document.getElementById("rainfallMm");
+        const humidityInput = document.getElementById("humidityPct");
+        const priorRainSlider = document.getElementById("priorRainSlider");
+        const priorRainDisplay = document.getElementById("priorRainDisplay");
+        const forecastForm = document.getElementById("forecastForm");
+        const predictBtn = document.getElementById("predictBtn");
+        const predictSpinner = document.getElementById("predictSpinner");
+        const predictBtnText = document.getElementById("predictBtnText");
+        const errorBanner = document.getElementById("errorBanner");
+        const monsoonPresetBtn = document.getElementById("monsoonPresetBtn");
+
+        const RISK_STYLES = {
+            Low: {
+                badge: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
+                dot: "bg-emerald-400",
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { labels: { color: '#cbd5e1' } }
-                },
-                scales: {
-                    x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
-                    y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+            Medium: {
+                badge: "bg-amber-500/15 text-amber-300 border-amber-500/40",
+                dot: "bg-amber-400",
+            },
+            High: {
+                badge: "bg-orange-500/15 text-orange-300 border-orange-500/40",
+                dot: "bg-orange-400",
+            },
+            Critical: {
+                badge: "bg-rose-500/20 text-rose-300 border-rose-500/50",
+                dot: "bg-rose-500 animate-ping",
+            },
+        };
+
+        function showError(msg) {
+            errorBanner.textContent = msg;
+            errorBanner.classList.remove("hidden");
+        }
+
+        function clearError() {
+            errorBanner.textContent = "";
+            errorBanner.classList.add("hidden");
+        }
+
+        function updateSliderDisplay() {
+            const val = parseFloat(priorRainSlider.value || "0");
+            priorRainDisplay.textContent = `${val.toFixed(1)} mm`;
+        }
+
+        function renderWardVulnerability(meta) {
+            const wl = Number(meta.water_logging_risk_index);
+            const pop = Number(meta.population_density_sqkm);
+            const san = Number(meta.sanitation_score);
+
+            document.getElementById("waterLoggingVal").textContent = wl.toFixed(2);
+            document.getElementById("waterLoggingBar").style.width = `${Math.min(100, Math.max(0, wl * 100))}%`;
+
+            document.getElementById("popDensityVal").textContent = Math.round(pop).toLocaleString();
+            const popPct = Math.min(100, Math.max(5, (pop / 100000) * 100));
+            document.getElementById("popDensityBar").style.width = `${popPct}%`;
+
+            document.getElementById("sanitationVal").textContent = san.toFixed(2);
+            document.getElementById("sanitationBar").style.width = `${Math.min(100, Math.max(0, san * 100))}%`;
+        }
+
+        function renderPrediction(data) {
+            document.getElementById("predictedCasesValue").textContent = data.predicted_cases.toFixed(2);
+            document.getElementById("forecastContextLabel").textContent =
+                `${data.ward_id} (${data.city}) • Forecast Week: ${data.target_date}`;
+            document.getElementById("roll3wRainTag").textContent =
+                `3W Cumul. Rain: ${data.lag_summary.rainfall_roll_3w.toFixed(1)} mm`;
+            document.getElementById("advisoryText").textContent = data.advisory;
+
+            const style = RISK_STYLES[data.risk_tier] || RISK_STYLES.Low;
+            const badge = document.getElementById("riskTierBadge");
+            const dot = document.getElementById("riskTierDot");
+            badge.className = `inline-flex items-center gap-2 px-4 py-2 rounded-xl text-base font-bold border ${style.badge}`;
+            dot.className = `w-2.5 h-2.5 rounded-full ${style.dot}`;
+            document.getElementById("riskTierText").textContent = data.risk_tier;
+
+            renderWardVulnerability(data.ward_metadata);
+
+            const driversContainer = document.getElementById("driversList");
+            driversContainer.innerHTML = "";
+            data.top_drivers.forEach((driver) => {
+                const isUp = driver.direction === "increases_risk";
+                const barColor = isUp ? "bg-rose-500" : "bg-emerald-500";
+                const textColor = isUp ? "text-rose-400" : "text-emerald-400";
+                const sign = driver.contribution >= 0 ? "+" : "";
+
+                const row = document.createElement("div");
+                row.className = "space-y-1.5";
+                row.innerHTML = `
+                    <div class="flex items-center justify-between gap-2 text-xs">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="font-medium text-slate-200 truncate">${driver.label}</span>
+                            <span class="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-400 shrink-0">${driver.value}</span>
+                        </div>
+                        <span class="font-mono font-semibold ${textColor} shrink-0">${sign}${driver.contribution.toFixed(3)}</span>
+                    </div>
+                    <div class="w-full h-2 rounded-full bg-slate-950 border border-slate-800 overflow-hidden">
+                        <div class="h-full rounded-full ${barColor} transition-all duration-300" style="width: ${Math.max(4, driver.bar_pct)}%"></div>
+                    </div>
+                `;
+                driversContainer.appendChild(row);
+            });
+        }
+
+        async function loadWardDefaults(wardId, runAfter = true) {
+            clearError();
+            try {
+                const res = await fetch(`/api/ward/${encodeURIComponent(wardId)}`);
+                if (!res.ok) throw new Error(`Failed to load ward ${wardId}`);
+                const data = await res.json();
+
+                renderWardVulnerability(data.metadata);
+                targetDateInput.value = data.defaults.target_date;
+                avgTempInput.value = data.defaults.avg_temp_c;
+                maxTempInput.value = data.defaults.max_temp_c;
+                minTempInput.value = data.defaults.min_temp_c;
+                rainfallInput.value = data.defaults.rainfall_mm;
+                humidityInput.value = data.defaults.relative_humidity_pct;
+                priorRainSlider.value = Math.min(250, Math.max(0, Math.round(data.defaults.prior_3w_avg_rainfall_mm)));
+                updateSliderDisplay();
+
+                if (runAfter) {
+                    await runForecast();
                 }
+            } catch (err) {
+                showError(err.message);
+            }
+        }
+
+        async function runForecast() {
+            clearError();
+            predictBtn.disabled = true;
+            predictSpinner.classList.remove("hidden");
+            predictBtnText.textContent = "Computing Forecast...";
+
+            const payload = {
+                ward_id: wardSelect.value,
+                target_date: targetDateInput.value,
+                avg_temp_c: parseFloat(avgTempInput.value),
+                max_temp_c: parseFloat(maxTempInput.value),
+                min_temp_c: parseFloat(minTempInput.value),
+                rainfall_mm: parseFloat(rainfallInput.value),
+                relative_humidity_pct: parseFloat(humidityInput.value),
+                prior_3w_avg_rainfall_mm: parseFloat(priorRainSlider.value),
+            };
+
+            try {
+                const res = await fetch("/api/predict", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.detail || "Prediction request failed.");
+                }
+                renderPrediction(data);
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                predictBtn.disabled = false;
+                predictSpinner.classList.add("hidden");
+                predictBtnText.textContent = "Run Outbreak Risk Forecast";
+            }
+        }
+
+        async function loadValidationChart() {
+            try {
+                const res = await fetch("/api/validation-chart");
+                if (!res.ok) return;
+                const data = await res.json();
+
+                const labels = data.series.map((d) => d.date);
+                const actual = data.series.map((d) => d.dengue_cases);
+                const predicted = data.series.map((d) => d.predicted_cases);
+
+                const ctx = document.getElementById("validationChart").getContext("2d");
+                new Chart(ctx, {
+                    type: "line",
+                    data: {
+                        labels,
+                        datasets: [
+                            {
+                                label: "Actual Weekly Cases (2025)",
+                                data: actual,
+                                borderColor: "#38bdf8",
+                                backgroundColor: "rgba(56, 189, 248, 0.12)",
+                                borderWidth: 2,
+                                pointRadius: 2,
+                                pointHoverRadius: 5,
+                                tension: 0.3,
+                                fill: true,
+                            },
+                            {
+                                label: "Predicted Weekly Cases (LightGBM)",
+                                data: predicted,
+                                borderColor: "#34d399",
+                                backgroundColor: "transparent",
+                                borderWidth: 2.5,
+                                borderDash: [6, 3],
+                                pointRadius: 2,
+                                pointHoverRadius: 5,
+                                tension: 0.3,
+                            },
+                        ],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: "index", intersect: false },
+                        plugins: {
+                            legend: {
+                                position: "top",
+                                align: "end",
+                                labels: { color: "#cbd5e1", usePointStyle: true, boxWidth: 8 },
+                            },
+                            tooltip: {
+                                backgroundColor: "#0f172a",
+                                titleColor: "#f8fafc",
+                                bodyColor: "#cbd5e1",
+                                borderColor: "#334155",
+                                borderWidth: 1,
+                            },
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: "#94a3b8", maxTicksLimit: 12 },
+                                grid: { color: "rgba(30, 41, 59, 0.6)" },
+                            },
+                            y: {
+                                beginAtZero: true,
+                                title: { display: true, text: "Total Weekly Cases (All Wards)", color: "#94a3b8" },
+                                ticks: { color: "#94a3b8" },
+                                grid: { color: "rgba(30, 41, 59, 0.6)" },
+                            },
+                        },
+                    },
+                });
+            } catch (err) {
+                console.error("Validation chart load error:", err);
+            }
+        }
+
+        priorRainSlider.addEventListener("input", updateSliderDisplay);
+        wardSelect.addEventListener("change", () => loadWardDefaults(wardSelect.value, true));
+        forecastForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            runForecast();
+        });
+
+        monsoonPresetBtn.addEventListener("click", () => {
+            targetDateInput.value = "2026-08-17";
+            avgTempInput.value = "29.4";
+            maxTempInput.value = "33.2";
+            minTempInput.value = "26.1";
+            rainfallInput.value = "145.0";
+            humidityInput.value = "86.5";
+            priorRainSlider.value = "195";
+            updateSliderDisplay();
+            runForecast();
+        });
+
+        // Initial bootstrap
+        document.addEventListener("DOMContentLoaded", () => {
+            loadValidationChart();
+            if (wardSelect.value) {
+                loadWardDefaults(wardSelect.value, true);
             }
         });
     </script>
