@@ -44,13 +44,11 @@ def build_features(data: pd.DataFrame) -> pd.DataFrame:
 
     grouped = df.groupby("ward_id", group_keys=False)
 
-    # 1. Multi-week weather lags per ward (captures 2-to-4-week Aedes breeding & incubation cycle)
     for lag in [1, 2, 3, 4]:
         df[f"rainfall_lag_{lag}w"] = grouped["rainfall_mm"].shift(lag)
         df[f"temp_lag_{lag}w"] = grouped["avg_temp_c"].shift(lag)
         df[f"humidity_lag_{lag}w"] = grouped["relative_humidity_pct"].shift(lag)
 
-    # 2. 3-week rolling weather summaries (weeks t-3 to t-1)
     df["rainfall_roll_3w"] = grouped["rainfall_mm"].transform(
         lambda s: s.shift(1).rolling(3, min_periods=3).sum()
     )
@@ -61,13 +59,11 @@ def build_features(data: pd.DataFrame) -> pd.DataFrame:
         lambda s: s.shift(1).rolling(3, min_periods=3).mean()
     )
 
-    # 3. Diurnal temperature range & cyclical week-of-year seasonality
     df["temp_range_c"] = df["max_temp_c"] - df["min_temp_c"]
     week_of_year = df["date"].dt.isocalendar().week.astype(int)
     df["week_sin"] = np.sin(2 * np.pi * week_of_year / 52.0)
     df["week_cos"] = np.cos(2 * np.pi * week_of_year / 52.0)
 
-    # 4. Hyper-local ward vulnerability interactions
     df["rain_x_waterlogging_3w"] = df["rainfall_lag_3w"] * df["water_logging_risk_index"]
     df["rain_x_density_3w"] = df["rainfall_lag_3w"] * (df["population_density_sqkm"] / 10000.0)
     df["rain_x_poor_sanitation_3w"] = df["rainfall_lag_3w"] * (1.0 - df["sanitation_score"])

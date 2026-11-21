@@ -10,7 +10,6 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Model artifacts (e.g., artifacts/dengue_pipeline.joblib) will be loaded once here at startup
     print("Starting up Dengue Early-Warning Server...")
     yield
     print("Shutting down server...")
