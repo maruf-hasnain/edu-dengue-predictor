@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from src.features import FEATURE_LABELS, build_features, classify_risk
+from src.train import train_and_export
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
@@ -41,11 +42,19 @@ class PredictRequest(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not ARTIFACT_PATH.exists():
-        raise FileNotFoundError(
-            f"Model artifact not found at {ARTIFACT_PATH}. Run `python -m src.train` first."
+        print(f"Artifact not found at {ARTIFACT_PATH}. Training pipeline automatically...")
+        train_and_export()
+
+    try:
+        app.state.artifact = joblib.load(ARTIFACT_PATH)
+        print(f"Loaded dengue pipeline artifact from {ARTIFACT_PATH}")
+    except Exception as exc:
+        print(
+            f"Artifact load failed ({exc}); regenerating compatible artifact locally..."
         )
-    app.state.artifact = joblib.load(ARTIFACT_PATH)
-    print(f"Loaded dengue pipeline artifact from {ARTIFACT_PATH}")
+        train_and_export()
+        app.state.artifact = joblib.load(ARTIFACT_PATH)
+        print(f"Loaded regenerated dengue pipeline artifact from {ARTIFACT_PATH}")
     yield
     app.state.artifact = None
 
