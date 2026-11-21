@@ -94,19 +94,45 @@
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             <!-- LEFT PANEL: Ward & Weather Scenario Controls -->
             <section class="lg:col-span-5 rounded-2xl bg-slate-900/90 border border-slate-800 p-5 sm:p-6 shadow-xl">
-                <div class="flex items-center justify-between gap-2 mb-5">
+                <div class="mb-5 space-y-3">
                     <div>
                         <h2 class="text-base font-semibold text-white">Forecast &amp; Weather Simulator</h2>
-                        <p class="text-xs text-slate-400 mt-0.5">Adjust current conditions &amp; lagged monsoon rainfall</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Adjust current conditions &amp; lagged monsoon rainfall, or pick a 2026 preset</p>
                     </div>
-                    <button
-                        type="button"
-                        id="monsoonPresetBtn"
-                        class="text-xs px-2.5 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 transition cursor-pointer"
-                        title="Simulate peak monsoon temperature, humidity, and heavy lagged rainfall"
-                    >
-                        Monsoon Surge Preset
-                    </button>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" id="presetBar">
+                        <button
+                            type="button"
+                            data-preset="dry_winter"
+                            class="preset-btn text-xs px-2.5 py-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition cursor-pointer font-medium text-center"
+                            title="2026-01-19 • 21.5°C • 60% Hum • 3mm Prior Rain"
+                        >
+                            Dry Winter
+                        </button>
+                        <button
+                            type="button"
+                            data-preset="pre_monsoon"
+                            class="preset-btn text-xs px-2.5 py-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition cursor-pointer font-medium text-center"
+                            title="2026-05-18 • 28.5°C • 76% Hum • 45mm Prior Rain"
+                        >
+                            Pre-Monsoon
+                        </button>
+                        <button
+                            type="button"
+                            data-preset="early_monsoon"
+                            class="preset-btn text-xs px-2.5 py-2 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 border border-orange-500/30 transition cursor-pointer font-medium text-center"
+                            title="2026-06-22 • 28.8°C • 82% Hum • 80mm Prior Rain"
+                        >
+                            Early Monsoon
+                        </button>
+                        <button
+                            type="button"
+                            data-preset="peak_monsoon"
+                            class="preset-btn text-xs px-2.5 py-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 transition cursor-pointer font-medium text-center"
+                            title="2026-08-17 • 29.4°C • 86.5% Hum • 195mm Prior Rain"
+                        >
+                            Peak Monsoon
+                        </button>
+                    </div>
                 </div>
 
                 <form id="forecastForm" class="space-y-4">
@@ -420,7 +446,46 @@
         const predictSpinner = document.getElementById("predictSpinner");
         const predictBtnText = document.getElementById("predictBtnText");
         const errorBanner = document.getElementById("errorBanner");
-        const monsoonPresetBtn = document.getElementById("monsoonPresetBtn");
+        const presetButtons = document.querySelectorAll(".preset-btn");
+
+        const PRESETS_2026 = {
+            dry_winter: {
+                target_date: "2026-01-19",
+                avg_temp_c: "21.5",
+                max_temp_c: "26.2",
+                min_temp_c: "16.0",
+                rainfall_mm: "2.0",
+                relative_humidity_pct: "60.0",
+                prior_3w_avg_rainfall_mm: "3",
+            },
+            pre_monsoon: {
+                target_date: "2026-05-18",
+                avg_temp_c: "28.5",
+                max_temp_c: "33.0",
+                min_temp_c: "24.5",
+                rainfall_mm: "35.0",
+                relative_humidity_pct: "76.0",
+                prior_3w_avg_rainfall_mm: "45",
+            },
+            early_monsoon: {
+                target_date: "2026-06-22",
+                avg_temp_c: "28.8",
+                max_temp_c: "32.4",
+                min_temp_c: "25.5",
+                rainfall_mm: "85.0",
+                relative_humidity_pct: "82.0",
+                prior_3w_avg_rainfall_mm: "80",
+            },
+            peak_monsoon: {
+                target_date: "2026-08-17",
+                avg_temp_c: "29.4",
+                max_temp_c: "33.2",
+                min_temp_c: "26.1",
+                rainfall_mm: "145.0",
+                relative_humidity_pct: "86.5",
+                prior_3w_avg_rainfall_mm: "195",
+            },
+        };
 
         const RISK_STYLES = {
             Low: {
@@ -660,22 +725,33 @@
                 try { targetDateInput.showPicker(); } catch (_) {}
             }
         });
-        wardSelect.addEventListener("change", () => loadWardDefaults(wardSelect.value, true));
+        wardSelect.addEventListener("change", () => {
+            presetButtons.forEach((b) => b.classList.remove("ring-2", "ring-white/70"));
+            loadWardDefaults(wardSelect.value, false);
+        });
         forecastForm.addEventListener("submit", (e) => {
             e.preventDefault();
             runForecast();
         });
 
-        monsoonPresetBtn.addEventListener("click", () => {
-            targetDateInput.value = "2026-08-17";
-            avgTempInput.value = "29.4";
-            maxTempInput.value = "33.2";
-            minTempInput.value = "26.1";
-            rainfallInput.value = "145.0";
-            humidityInput.value = "86.5";
-            priorRainSlider.value = "195";
-            updateSliderDisplay();
-            runForecast();
+        presetButtons.forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const key = btn.dataset.preset;
+                const preset = PRESETS_2026[key];
+                if (!preset) return;
+
+                presetButtons.forEach((b) => b.classList.remove("ring-2", "ring-white/70"));
+                btn.classList.add("ring-2", "ring-white/70");
+
+                targetDateInput.value = preset.target_date;
+                avgTempInput.value = preset.avg_temp_c;
+                maxTempInput.value = preset.max_temp_c;
+                minTempInput.value = preset.min_temp_c;
+                rainfallInput.value = preset.rainfall_mm;
+                humidityInput.value = preset.relative_humidity_pct;
+                priorRainSlider.value = preset.prior_3w_avg_rainfall_mm;
+                updateSliderDisplay();
+            });
         });
 
         // Initial bootstrap
