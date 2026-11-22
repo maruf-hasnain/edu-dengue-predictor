@@ -17,9 +17,7 @@ This system models both **multi-week ward-grouped weather lags (1–4 weeks)** a
 
 ## Team
 
-> **Note:** Update the table below with your exact registered team name and member details before final submission.
 
-| Field | Details |
 | :--- | :--- |
 | **Team Name** | `Raindrop` |
 | **Member 1 (Team Leader)** | `Maruf Hasnain` — `253019412` |
@@ -141,7 +139,3 @@ In accordance with **Section 9 & Appendix B** of the EDU AI Engineering Hackatho
 
 ---
 
-## Demo & Submission Links
-
-- **Local Run URL:** `http://127.0.0.1:8000`
-- **Live Uncut Demo Video (<= 3:00 mins, voiceover, no slides):** `[Insert Public Video Link Here]`
