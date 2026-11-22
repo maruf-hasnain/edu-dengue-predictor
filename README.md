@@ -18,7 +18,7 @@ This system models both **multi-week ward-grouped weather lags (1–4 weeks)** a
 ## Team
 
 
-| :--- | :--- |
+
 | **Team Name** | `Raindrop` |
 | **Member 1 (Team Leader)** | `Maruf Hasnain` — `253019412` |
 | **Member 2** | `Humaira Tasnim` — `253018912` |
