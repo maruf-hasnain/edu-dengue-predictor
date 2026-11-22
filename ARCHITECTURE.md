@@ -1,122 +1,75 @@
-# System Architecture — Urban Dengue Outbreak Early-Warning System
+# Architecture — Urban Dengue Outbreak Early-Warning System
 
-This document describes the end-to-end data flow, chronological validation strategy, model selection rationale, compute/cost efficiency controls, and operational resilience of the **Urban Dengue Outbreak Early-Warning System** (EDU AI Engineering Hackathon 2026 — Phase 1).
+## 1. System Overview
 
----
-
-## 1. System Data Flow Diagram
-
-The architecture cleanly separates **offline chronological training** from **low-latency local online serving**, reusing the exact same feature pipeline (`src/features.py`) in both stages to eliminate training–serving skew.
+The system separates offline model training (`src/train.py`) from local web serving (`app/main.py`). Both stages import the same feature pipeline from `src/features.py` so live predictions use the exact same lag math as training.
 
 ```mermaid
-flowchart TD
-    subgraph Offline["Offline Training & Artifact Pipeline (src/train.py)"]
-        CSV["data/dengue.csv<br/>31,320 weekly records<br/>60 wards across 5 cities (2016–2025)"]
-        FEAT_OFF["src/features.py :: build_features()<br/>Ward-grouped 1–4w lags, 3w rolling stats,<br/>seasonality & ward vulnerability interactions"]
-        SPLIT["Strict 3-Way Chronological Split<br/>Train: 2016–2023 | Val: 2024 | Blind Test: 2025"]
-        LGBM["LightGBM Regressor<br/>objective='tweedie' (power=1.3)"]
-        BUNDLE["artifacts/dengue_pipeline.joblib (1.79 MB)<br/>Model + Feature Schema + Ward Metadata +<br/>4-Week Recent History + 2025 Validation Chart"]
-
-        CSV --> FEAT_OFF --> SPLIT --> LGBM --> BUNDLE
-    end
-
-    subgraph Online["Online Serving Layer (app/main.py — FastAPI)"]
-        LIFE["FastAPI lifespan() Startup Hook<br/>Loads joblib bundle ONCE into app.state.artifact<br/>(Auto-rebuilds if missing or version-mismatched)"]
-        EP_UI["GET /<br/>Renders Jinja2 Dashboard + 2025 Metrics"]
-        EP_WARD["GET /api/ward/{ward_id}<br/>O(1) lookup of ward metadata & weather defaults"]
-        EP_CHART["GET /api/validation-chart<br/>O(1) lookup of precomputed 2025 weekly series"]
-        EP_PRED["POST /api/predict<br/>1. Validate Pydantic payload<br/>2. Build aligned 5-week window (4 hist + target)<br/>3. Reuse build_features()<br/>4. LightGBM predict() + pred_contrib=True<br/>5. Map Risk Tier & Top 5 Drivers"]
-
-        BUNDLE --> LIFE
-        LIFE --> EP_UI
-        LIFE --> EP_WARD
-        LIFE --> EP_CHART
-        LIFE --> EP_PRED
-    end
-
-    subgraph Frontend["Interactive Public Health Dashboard (app/templates/index.html)"]
-        UI["Tailwind CSS + Chart.js Web UI<br/>Ward Selector • Date Picker • 2026 Presets<br/>Prior 3W Lagged Rainfall Slider • Risk Badge<br/>Top 5 Driver Bars • 2025 Validation Chart"]
-    end
-
-    UI <--> EP_UI
-    UI <--> EP_WARD
-    UI <--> EP_CHART
-    UI <--> EP_PRED
+flowchart LR
+    A[data/dengue.csv<br/>31,320 rows, 60 wards] --> B[src/features.py<br/>Ward-grouped lags]
+    B --> C[src/train.py<br/>Chronological split + LightGBM]
+    C --> D[artifacts/dengue_pipeline.joblib<br/>Model + metadata + 2025 chart]
+    D --> E[app/main.py<br/>FastAPI loaded once via lifespan]
+    E <--> F[app/templates/index.html<br/>Dashboard + Chart.js]
 ```
 
----
-
-## 2. Feature Engineering & Domain Alignment (`src/features.py`)
-
-Dengue transmission is governed by the *Aedes aegypti* **vector breeding clock** (7–14 days for eggs in stagnant rainwater to mature + viral incubation and symptom onset = **2-to-4-week lag**) combined with **hyper-local urban vulnerability**.
-
-To prevent cross-ward leakage, all temporal transformations are strictly computed **within each ward** using `df.sort_values(["ward_id", "date"]).groupby("ward_id")`:
-
-| Feature Group | Engineered Columns (31 Total Features) | Epidemiological Justification |
-| :--- | :--- | :--- |
-| **Multi-Week Weather Lags** | `rainfall_lag_1w..4w`, `temp_lag_1w..4w`, `humidity_lag_1w..4w` | Captures the exact 1-to-4-week mosquito breeding, larval survival, and incubation lag window. |
-| **3-Week Rolling Aggregates** | `rainfall_roll_3w` (sum), `temp_roll_3w` (mean), `humidity_roll_3w` (mean) | Measures sustained monsoon water accumulation and ambient conditions prior to the target week (`shift(1).rolling(3)` to prevent same-week leakage). |
-| **Micro-Climate & Seasonality** | `temp_range_c` (`max - min`), `week_sin`, `week_cos` | Encodes diurnal temperature variation and smooth cyclical annual monsoon timing without tree-split discontinuities at year boundaries. |
-| **Ward Vulnerability Interactions** | `rain_x_waterlogging_3w`, `rain_x_density_3w`, `rain_x_poor_sanitation_3w` | Quantifies why identical rainfall 3 weeks ago triggers severe outbreaks in poorly drained, densely crowded, low-sanitation wards while sparing resilient wards. |
-| **Static Ward Context** | `population_density_sqkm`, `water_logging_risk_index`, `sanitation_score`, `city_cat`, `ward_cat` | Anchors baseline susceptibility per city and municipal ward using LightGBM's native categorical splits. |
-
-**Zero Target Leakage:** No lagged `dengue_cases` columns are used as model inputs. This guarantees the model forecasts purely from weather + ward vulnerability and can project arbitrary future weeks without requiring prior hospital admission counts.
+**Core endpoints (`app/main.py`):**
+- `GET /` — Renders the dashboard with ward options and 2025 test metrics.
+- `GET /api/ward/{ward_id}` — Returns static ward info and recent weather defaults from memory.
+- `GET /api/validation-chart` — Returns precomputed 2025 weekly actual vs. predicted totals.
+- `POST /api/predict` — Builds a 5-week window (4 prior weeks + target week), runs `build_features()`, predicts weekly cases, maps the risk tier, and returns the top 5 feature drivers via `pred_contrib=True`.
 
 ---
 
-## 3. Chronological Validation Split (`src/train.py`)
+## 2. Feature Engineering (`src/features.py`)
 
-Random train/test splits cause severe temporal leakage in epidemic time series (allowing trees to interpolate adjacent weeks from the same outbreak wave). We enforce a **strict 3-way chronological split**:
+Because *Aedes aegypti* mosquitoes take roughly 2 to 4 weeks from heavy rain to adult transmission and reported cases, all weather lags are computed strictly inside each ward (`sort_values(["ward_id", "date"]).groupby("ward_id")`) so data never leaks across neighborhoods.
 
-1. **Training Set (`2016-01-04` to `2023-12-31`):** 8 full years of multi-city seasonal cycles used to fit candidate models.
-2. **Validation Set (`2024-01-01` to `2024-12-31`):** 1 full unseen year used to verify hyperparameter settings (`Validation RMSE: 1.501`).
-3. **Blind Untouched Test Set (`2025-01-01` to `2025-12-29`):** Refit finalized hyperparameters on `2016–2024` and evaluate **once** on 52 unseen weeks across all 60 wards.
+- **Weather Lags (12 features):** 1-to-4-week lags of `rainfall_mm`, `avg_temp_c`, and `relative_humidity_pct`.
+- **3-Week Rolling Stats (3 features):** Rolling sum of rainfall and rolling averages of temperature and humidity over weeks `t-3` to `t-1` (`shift(1).rolling(3)`).
+- **Seasonality & Temp Spread (3 features):** Diurnal range (`max_temp_c - min_temp_c`) plus cyclical week-of-year (`week_sin`, `week_cos`).
+- **Vulnerability Interactions (3 features):** 3-week lagged rainfall multiplied by `water_logging_risk_index`, `population_density_sqkm`, and `(1 - sanitation_score)`.
+- **Ward & Current Weather Context (10 features):** Current weather inputs, static ward vulnerability metrics, and native categorical `city_cat` / `ward_cat`.
 
-| Evaluation Metric (Blind 2025 Test Set) | Value | Operational Meaning |
-| :--- | :---: | :--- |
-| **MAE** | **`0.800` cases/ward/week** | Sub-1-case average weekly ward error across the entire year. |
-| **RMSE** | **`1.546` cases/ward/week** | Strong peak-surge control during monsoon spikes. |
-| **R²** | **`0.846`** | Explains 84.6% of weekly outbreak variance on an unseen year. |
-| **4-Tier Risk Accuracy** | **`84.2%`** | Accurate operational classification into `Low` (`<2`), `Medium` (`2–4.99`), `High` (`5–9.99`), and `Critical` (`>=10`). |
+No lagged `dengue_cases` are used as inputs, so the model can forecast future weeks purely from weather and ward characteristics without needing recent hospital counts.
 
 ---
 
-## 4. Model Selection Rationale & Design Trade-Offs
+## 3. Validation Strategy & Model Selection
 
-### Selected Model: `LightGBM Regressor` (`objective="tweedie"`, `tweedie_variance_power=1.3`)
+Random train/test splits leak future weeks into past weeks in time-series data. We used a strict chronological split across the 10-year dataset (`2016–2025`):
 
-- **Matches Zero-Inflated Outbreak Distribution:** In `data/dengue.csv`, **58.0%** of weekly ward records have `0` dengue cases, while peak monsoon weeks spike up to `41` cases. Standard MSE/L2 loss under-predicts surges and outputs negative counts. Tweedie regression (`1 < p < 2`, compound Poisson–Gamma) natively models exact zeros plus skewed positive count distributions.
-- **Native Non-Linear Interactions & Explainability:** Gradient boosted decision trees naturally learn non-linear thresholds (e.g., rainfall × high humidity × water-logging risk) and expose fast exact TreeSHAP feature contributions via `model.predict(X_row, pred_contrib=True)` with zero external explanation libraries.
+- **Train:** `2016-01-04` to `2023-12-25` (8 years)
+- **Validation:** `2024-01-01` to `2024-12-30` (used to tune Tweedie power; `RMSE: 1.501`)
+- **Blind Test:** `2025-01-06` to `2025-12-29` (refit on `2016–2024`, evaluated once)
 
-### Alternatives & Trade-Offs Considered
+### Model Benchmark (2024–2025 Chronological Holdout)
 
-| Alternative | Why Not Selected for Phase 1 |
-| :--- | :--- |
-| **Linear / Poisson GLM** | Cannot easily capture non-linear temperature-humidity thresholds or complex ward-level interactions without manual polynomial expansion. |
-| **LSTM / Deep Sequence Models** | Higher training/inference latency, heavier dependency footprint (PyTorch/TensorFlow > 1 GB), harder to explain per-feature weather drivers to public health officers, and typically underperforms GBDTs on structured tabular data of ~31k rows. |
-| **External LLM Forecasting** | High latency (seconds per call), recurring token costs, non-deterministic numeric outputs, and risk of network/rate-limit outages during municipal emergencies. |
+| Model | MAE | RMSE |
+| :--- | :---: | :---: |
+| **LightGBM (Tweedie)** | **0.789** | **1.535** |
+| LightGBM (Poisson) | 0.817 | 1.564 |
+| HistGradientBoosting | 0.843 | 1.577 |
+| Random Forest | 0.866 | 1.622 |
+| Ridge (Baseline) | 1.179 | 2.106 |
 
----
+**Why LightGBM (Tweedie, `power=1.3`) won:**
+- **Zero-inflated target:** `58.0%` of weekly rows have `0` dengue cases while monsoon peaks hit `41`. Tweedie loss (`1 < p < 2`) handles exact zeros and right-skewed spikes better than standard MSE or pure Poisson.
+- **Built-in explainability:** `model.predict(X, pred_contrib=True)` returns exact per-prediction feature contributions in milliseconds without extra libraries.
+- **Fast & lightweight:** Runs on CPU with a ~1.8 MB artifact—unlike deep sequence models (LSTMs), which require heavy dependencies and are harder to explain to health officers.
 
-## 5. Compute, Caching & API Cost Efficiency
-
-Designed for resource-constrained public health offices and scaled production deployment in Phase 2:
-
-1. **Zero Runtime External API / LLM Token Cost (`$0.00` per forecast):**
-   - All inference and feature attribution execute locally on CPU via the `1.79 MB` serialized bundle (`artifacts/dengue_pipeline.joblib`), avoiding paid API loops and external latency entirely.
-2. **Single-Load In-Memory Caching (`FastAPI lifespan`):**
-   - `dengue_pipeline.joblib` is deserialized **exactly once** at server startup into `app.state.artifact`. Prediction endpoints never touch disk or reload models, achieving single-digit millisecond local inference.
-3. **Precomputed Static & Validation Payloads:**
-   - Static `ward_metadata`, 4-week `recent_history`, and the 52-week `weekly_test_chart` are aggregated once during training and bundled inside the artifact. `GET /api/ward/{ward_id}` and `GET /api/validation-chart` serve directly from RAM in `O(1)` time without re-reading the `2.58 MB` CSV or re-running inference.
-4. **Phase 2 External Weather API & Optional LLM Cost Controls:**
-   - When expanding in Phase 2 to live meteorological APIs (e.g., Open-Meteo / BMD) or optional LLM-generated briefing summaries:
-     - **City-Level Weather Caching (TTL 6–12 hours):** Query weather APIs per city (5 calls) rather than per ward (60 calls) or per user click, reducing external API volume by **>90%**.
-     - **Strict Prompt & Token Budgeting:** If an LLM narrative layer is added, keep numerical forecasting strictly in LightGBM, pass only the compact Top 5 driver JSON (<150 input tokens), cap output at `<= 120` tokens, and cache advisories by `(ward_id, risk_tier, week)` so repeated dashboard views incur zero additional tokens.
+### Final Blind 2025 Test Results
+- **MAE:** `0.800` cases/ward/week
+- **RMSE:** `1.546` cases/ward/week
+- **R²:** `0.846`
+- **4-Tier Risk Accuracy:** `84.2%` (`Low < 2`, `Medium 2–4.99`, `High 5–9.99`, `Critical >= 10`)
 
 ---
 
-## 6. Resilience & Error Handling
+## 4. Efficiency & Reliability
 
-- **Strict Request Validation:** `PredictRequest` (Pydantic v2) enforces numeric sanity bounds on temperatures, non-negative rainfall, humidity (`0–100%`), ISO `YYYY-MM-DD` date parsing, and physical consistency (`min_temp_c <= max_temp_c`), returning clear `422` responses on invalid inputs and `404` on unknown ward IDs.
-- **Cross-Environment Artifact Self-Healing:** On startup, if `artifacts/dengue_pipeline.joblib` is missing or fails deserialization due to a local Python/NumPy/scikit-learn version difference on a judge's machine, `lifespan()` automatically invokes `train_and_export()` (~3–5 seconds) to rebuild a compatible bundle before serving traffic.
-- **Network Failure & Rate-Limit Immunity:** Because core inference has zero external API dependencies, network interruptions or third-party rate limits never halt outbreak risk forecasting. On the frontend, failed fetch calls are caught and surfaced in a non-blocking inline error banner while preserving user inputs.
+- **Single-load startup:** FastAPI's `lifespan` loads `artifacts/dengue_pipeline.joblib` once into memory at boot. `/api/predict` never reads from disk or reloads the model.
+- **Zero external API costs:** All inference and driver calculations run locally on CPU (`$0` per forecast) and keep working offline.
+- **Precomputed lookups:** Ward metadata, 4-week history, and the 2025 chart series are bundled inside the `.joblib` file so dashboard endpoints respond from RAM without re-reading `data/dengue.csv`.
+- **Input validation & fallback:** Pydantic validates temperature bounds (`min_temp_c <= max_temp_c`), non-negative rainfall, humidity (`0–100%`), and ISO dates (`422` on bad input, `404` on unknown ward). If the `.joblib` file is missing or incompatible on a new machine, startup automatically re-runs `train_and_export()` to rebuild it.
+- **Phase 2 scaling note:** When adding live weather APIs later, forecasts should be cached per city (5 calls every 6–12 hours) rather than per ward (60 calls) or per page load.
