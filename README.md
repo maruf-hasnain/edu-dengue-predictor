@@ -21,10 +21,10 @@ This system models both **multi-week ward-grouped weather lags (1–4 weeks)** a
 
 | Field | Details |
 | :--- | :--- |
-| **Team Name** | `[Enter Registered Team Name]` |
-| **Member 1 (Team Leader)** | `[Full Name]` — `[Role, e.g., Backend & ML Pipeline]` |
-| **Member 2** | `[Full Name]` — `[Role, e.g., Feature Engineering & Validation]` |
-| **Member 3** | `[Full Name]` — `[Role, e.g., Frontend Dashboard & Documentation]` |
+| **Team Name** | `Raindrop` |
+| **Member 1 (Team Leader)** | `Maruf Hasnain` — `253019412` |
+| **Member 2** | `Humaira Tasnim` — `253018912` |
+| **Member 3** | `Orpita Barua Sarna` — `243011712` |
 
 ---
 
@@ -64,45 +64,22 @@ edu-dengue-predictor/
 
 ---
 
-## Setup & Run Instructions (<= 3 Minutes)
+## Setup & Run Instructions
 
-No external API keys or special system setup are required. Any standard Python `3.10+` environment works out of the box.
+No external API keys or special setup are required. Requires **Python 3.10+** and `pip`.
 
 ### 1. Clone the Repository
 ```bash
-git clone <your-public-repo-url>
+git clone https://github.com/maruf-hasnain/edu-dengue-predictor
 cd edu-dengue-predictor
 ```
 
-### 2. Create and Activate a Virtual Environment
-
-**Windows (Command Prompt):**
-```cmd
-python -m venv venv
-venv\Scripts\activate
-```
-
-**Windows (PowerShell):**
-```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-```
-
-**macOS / Linux:**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### 3. Install Dependencies
+### 2. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Environment Variables (Optional)
-No secret keys or external API credentials are needed—all ML inference runs locally. See [.env.example](.env.example) for default configuration reference.
-
-### 5. Launch the Application
+### 3. Launch the Application
 ```bash
 uvicorn app.main:app --reload
 ```
@@ -113,7 +90,7 @@ uvicorn app.main:app --reload
 > ```
 > *(If the bundled artifact ever hits a Python/NumPy version mismatch on startup, FastAPI automatically regenerates it via `train_and_export()` during startup.)*
 
-### 6. Open in Browser
+### 5. Open in Browser
 - **Interactive Dashboard:** `http://127.0.0.1:8000`
 - **Interactive Swagger API Docs:** `http://127.0.0.1:8000/docs`
 - **Health Check:** `http://127.0.0.1:8000/health`
